@@ -21,7 +21,7 @@ class ImagePreprocessArgs:
 
 
 class TFImageDataset:
-	 """Generate batches of tensor image data with real-time data augmentation.
+	"""Generate batches of tensor image data with real-time data augmentation.
      The data will be looped over (in batches).
 
      # Arguments
@@ -48,7 +48,7 @@ class TFImageDataset:
                 of NumPy arrays (in the case with
                 additional inputs) and `y` is a NumPy array
                 of corresponding labels.
-     """
+    """
 
 	def __init__(self, augmentation_function=None,
 				 preprocessing_function=None, shard=None,
@@ -112,7 +112,7 @@ class TFImageDataset:
 	            where `x` is a NumPy array containing a batch
 	            of images with shape `(batch_size, *target_size, channels)`
 	            and `y` is a NumPy array of corresponding labels.
-	        """
+	    """
 
 		image_args = ImagePreprocessArgs(target_size=target_size, color_mode=color_mode,
 										 preserve_aspect_ratio=preserve_aspect_ratio,
@@ -145,14 +145,23 @@ class TFImageDataset:
 		if repeat:
 			dataset = dataset.repeat()
 
-		if self.augmentation_function is not None:
-			augment_fn = self.augmentation_function
-			dataset = dataset.map(augment_fn)
-
 		dataset = dataset.map(partial(
-						_load_and_preprocess_from_path_label,
-						preprocessing_function=self.preprocessing_function,
+						_load_image_from_path_label,
 						image_args=image_args), num_parallel_calls=AUTOTUNE)
+
+		if self.augmentation_function is not None:
+			def augment_fn (image, label):
+				image = self.augmentation_function(image)
+				return image, label
+
+			dataset = dataset.map(augment_fn, num_parallel_calls=AUTOTUNE)
+
+		if self.preprocessing_function is not None:
+			def preprocess_fn(image, label):
+				image = self.preprocessing_function(image)
+				return image, label
+
+			dataset = dataset.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
 		dataset = dataset.batch(batch_size)
 
@@ -164,27 +173,18 @@ class TFImageDataset:
 		return dataset
 
 
-def _load_and_preprocess_from_path_label(path, label,
-										 preprocessing_function=None,
-										 image_args=None):
+def _load_image_from_path_label(path, label, image_args=None):
 
-	return _load_and_preprocess_image(path=path,
-    								  preprocessing_function=preprocessing_function,
-    								  image_args=image_args), label
+	return _load_and_preprocess_image(path=path, image_args=image_args), label
 
-def _load_and_preprocess_image(path,
-							   preprocessing_function=None,
-							   image_args=None):
+def _load_and_preprocess_image(path, image_args=None):
     image = tf.io.read_file(path)
     dicom = tf.strings.split(path, '.')[-1] == 'dcm'
     if not dicom:
-        return _preprocess_image(image, preprocessing_function, image_args)
-    return _preprocess_dicom(image, preprocessing_function, image_args)
+        return _preprocess_image(image, image_args)
+    return _preprocess_dicom(image, image_args)
 
-def _preprocess_dicom(image_bytes,
-                     preprocessing_function=None,
-                     image_args=None
-                     ):
+def _preprocess_dicom(image_bytes, image_args=None):
 
     image = tfio.image.decode_dicom_image(image_bytes,
                                           color_dim=True, dtype=tf.uint8,
@@ -198,12 +198,10 @@ def _preprocess_dicom(image_bytes,
         image = tf.image.resize(image, image_args.target_size,
                                 method=image_args.interpolation)
     image = tf.cast(image, tf.float32)
-    if preprocessing_function is not None:
-        image = preprocessing_function(image)
     return image
 
 
-def _preprocess_image(image, preprocessing_function=None, image_args=None):
+def _preprocess_image(image, image_args=None):
 
 	if image_args.color_mode == 'rgb':
 		channels = 3
@@ -217,8 +215,6 @@ def _preprocess_image(image, preprocessing_function=None, image_args=None):
 	else:
 		image = tf.image.resize(image, image_args.target_size, method=image_args.interpolation)
 	image = tf.cast(image, tf.float32)
-	if preprocessing_function is not None:
-		image = preprocessing_function(image)
 	return image
 
 def _label_encoding(vector, classes=None):
