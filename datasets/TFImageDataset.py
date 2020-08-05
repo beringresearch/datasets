@@ -60,7 +60,7 @@ class TFImageDataset:
 		self.prefetch_gpu = prefetch_gpu
 		self.shard = shard
 
-	def flow_from_dataframe(self, dataframe, directory='.', x_col='filename', y_col='class',
+	def flow_from_dataframe(self, dataframe, directory=None, x_col='filename', y_col='class',
 							color_mode='rgb', class_mode='categorical', classes=None,
 							target_size=(299, 299), preserve_aspect_ratio=False, batch_size=32,
 							shuffle=True, repeat=False, interpolation='nearest', 
@@ -85,7 +85,7 @@ class TFImageDataset:
 	            y_col: string or list, column/s in `dataframe` that has the target data.
 	            target_size: tuple of integers `(height, width)`, default: `(256, 256)`.
 	                The dimensions to which all images found will be resized.
-	            color_mode: one of "grayscale", "rgb", "rgba". Default: "rgb".
+	            color_mode: one of "grayscale", "rgb". Default: "rgb".
 	                Whether the images will be converted to have 1 or 3 color channels.
 	            classes: optional list of classes (e.g. `['dogs', 'cats']`).
 	                Default: None. If not provided, the list of classes will be
@@ -100,9 +100,7 @@ class TFImageDataset:
 	            interpolation: Interpolation method used to resample the image if the
 	                target size is different from that of the loaded image.
 	                Supported methods are `"nearest"`, `"bilinear"`, and `"bicubic"`.
-	                If PIL version 1.1.3 or newer is installed, `"lanczos"` is also
-	                supported. If PIL version 3.4.0 or newer is installed, `"box"` and
-	                `"hamming"` are also supported. By default, `"nearest"` is used.
+	                By default, `"nearest"` is used.
 	            validate_filenames: Boolean, whether to validate image filenames in
 	                `x_col`. If `True`, invalid images will be ignored. Disabling this
 	                option can lead to speed-up in the execution of this function.
@@ -118,8 +116,10 @@ class TFImageDataset:
 										 preserve_aspect_ratio=preserve_aspect_ratio,
 										 interpolation=interpolation)
 
-
-		img_filepaths = [os.path.join(directory, file) for file in dataframe[x_col].values]
+		if directory is not None:
+			img_filepaths = [os.path.join(directory, file) for file in dataframe[x_col].values]
+		else:
+			img_filepaths = dataframe[x_col].values
 
 		if validate_filenames:
 			exists = [os.path.exists(f) for f in img_filepaths]
