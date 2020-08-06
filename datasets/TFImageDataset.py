@@ -178,27 +178,27 @@ def _load_image_from_path_label(path, label, image_args=None):
 	return _load_and_preprocess_image(path=path, image_args=image_args), label
 
 def _load_and_preprocess_image(path, image_args=None):
-    image = tf.io.read_file(path)
-    dicom = tf.strings.split(path, '.')[-1] == 'dcm'
-    if not dicom:
-        return _preprocess_image(image, image_args)
-    return _preprocess_dicom(image, image_args)
+	image = tf.io.read_file(path)
+	dicom = tf.strings.split(path, '.')[-1] == 'dcm'
+	if not dicom:
+		return _preprocess_image(image, image_args)
+	return _preprocess_dicom(image, image_args)
 
 def _preprocess_dicom(image_bytes, image_args=None):
 
-    image = tfio.image.decode_dicom_image(image_bytes,
-                                          color_dim=True, dtype=tf.uint8,
-                                          scale='auto',
-                                          on_error='lossy')[0]
-    image = tf.image.grayscale_to_rgb(image)
-    if image_args.preserve_aspect_ratio:
-        image = tf.image.resize_with_pad(image, *image_args.target_size,
-                                         method=image_args.interpolation)
-    else:
-        image = tf.image.resize(image, image_args.target_size,
-                                method=image_args.interpolation)
-    image = tf.cast(image, tf.float32)
-    return image
+	image = tfio.image.decode_dicom_image(image_bytes,
+										  color_dim=True, dtype=tf.uint16,
+										  scale='auto',
+										  on_error='lossy')[0]
+	image = tf.image.grayscale_to_rgb(image)
+	if image_args.preserve_aspect_ratio:
+		image = tf.image.resize_with_pad(image, *image_args.target_size,
+										 method=image_args.interpolation)
+	else:
+		image = tf.image.resize(image, image_args.target_size,
+								method=image_args.interpolation)
+	image = tf.cast(image, tf.float32)
+	return image
 
 
 def _preprocess_image(image, image_args=None):
