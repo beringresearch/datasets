@@ -25,6 +25,7 @@ class TFImageDataset:
      The data will be looped over (in batches).
 
      # Arguments
+     	read_function function that is applied to read image data from disk.
      	augmentation_function function that applies a custom augmentation
      		schedule to original images
      	preprocessing_function: function that will be applied on each input.
@@ -50,10 +51,13 @@ class TFImageDataset:
                 of corresponding labels.
     """
 
-	def __init__(self, augmentation_function=None,
+	def __init__(self,
+				 read_function=None,
+				 augmentation_function=None,
 				 preprocessing_function=None, shard=None,
 				 prefetch=True, prefetch_gpu=False):
 
+		self.read_function=read_function
 		self.augmentation_function = augmentation_function
 		self.preprocessing_function = preprocessing_function
 		self.prefetch = prefetch
@@ -145,9 +149,14 @@ class TFImageDataset:
 		if repeat:
 			dataset = dataset.repeat()
 
-		dataset = dataset.map(partial(
-						_load_image_from_path_label,
-						image_args=image_args), num_parallel_calls=AUTOTUNE)
+		if self.read_function is not None:
+			def read_fn(path, label):
+				image = self.read_function(path)
+				return image, label
+			dataset = dataset.map(read_fn, num_parallel_calls=AUTOTUNE)
+		else:
+			read_fn = _load_image_from_path_label
+			dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
 
 		if self.augmentation_function is not None:
 			def augment_fn (image, label):
@@ -189,7 +198,7 @@ def _preprocess_dicom(image_bytes, image_args=None):
 	image = tfio.image.decode_dicom_image(image_bytes,
 										  color_dim=True, dtype=tf.uint16,
 										  scale='auto',
-										  on_error='lossy')[0]
+										  on_error='strict')[0]
 	image = tf.image.grayscale_to_rgb(image)
 	if image_args.preserve_aspect_ratio:
 		image = tf.image.resize_with_pad(image, *image_args.target_size,
@@ -197,7 +206,7 @@ def _preprocess_dicom(image_bytes, image_args=None):
 	else:
 		image = tf.image.resize(image, image_args.target_size,
 								method=image_args.interpolation)
-	image = tf.cast(image, tf.float32)
+	image = tf.cast(tf.cast(image, tf.uint16), tf.float32)
 	return image
 
 
