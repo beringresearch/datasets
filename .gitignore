@@ -1,4 +1,13 @@
 *.egg-info
 .ipynb_checkpoints
+dist
+*.egg-info/
+__pycache__/
+*.egg
+.DS_Store
+*.swp
+.ipynb_checkpoints
+_build
+*.pyc
 
 examples/padchest/
