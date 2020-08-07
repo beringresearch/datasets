@@ -64,6 +64,33 @@ class TFImageDataset:
 		self.prefetch_gpu = prefetch_gpu
 		self.shard = shard
 
+	def flow(self, x, y=None, batch_size=32, shuffle=True, repeat=False, random_state=None):
+		"""Takes data & label arrays, generates batches of augmented data.
+
+			# Arguments
+
+				x: Input data. Numpy array of rank 4 or a tuple. If tuple, the first
+					element should contain the images and the second element another
+					numpy array or a list of numpy arrays that gets passed to the output
+					without any modifications. Can be used to feed the model miscellaneous
+					data along with the images. In case of grayscale data, the channels
+					axis of the image array should have value 1, in case of RGB data, it
+					should have value 3, and in case of RGBA data, it should have value 4.
+				y: Labels.
+				batch_size: Int (default: 32).
+				shuffle: Boolean (default: True).
+				random_state: Int (default: None).
+				repeat: whether to repeat the data (default: False)
+		"""
+
+		dataset = self.__create_dataset('numpy', x, y, shuffle=shuffle,
+										batch_size=batch_size, repeat=repeat,
+										random_state=random_state, image_args=None)
+
+		return dataset
+
+
+
 	def flow_from_dataframe(self, dataframe, directory=None, x_col='filename', y_col='class',
 							color_mode='rgb', class_mode='categorical', classes=None,
 							target_size=(299, 299), preserve_aspect_ratio=False, batch_size=32,
@@ -100,15 +127,20 @@ class TFImageDataset:
 	            class_mode: one of "categorical"
 	            batch_size: size of the batches of data (default: 32).
 	            shuffle: whether to shuffle the data (default: True)
-	            seed: optional random seed for shuffling and transformations.
+	            repeat: whether to repeat the data (default: False)
 	            interpolation: Interpolation method used to resample the image if the
 	                target size is different from that of the loaded image.
 	                Supported methods are `"nearest"`, `"bilinear"`, and `"bicubic"`.
 	                By default, `"nearest"` is used.
-	            validate_filenames: Boolean, whether to validate image filenames in
+	            validadataset = self.__create_dataset(img_filepaths, label_encodings, shuffle=shuffle,
+										batch_size=batch_size, repeat=repeat,
+										random_state=random_state, image_args=image_args)
+
+		return datasette_filenames: Boolean, whether to validate image filenames in
 	                `x_col`. If `True`, invalid images will be ignored. Disabling this
 	                option can lead to speed-up in the execution of this function.
 	                Default: `True`.
+	            random_state: Integer, sets random seed.
 	        # Returns
 	            A `Dataset` yielding tuples of `(x, y)`
 	            where `x` is a NumPy array containing a batch
@@ -138,13 +170,21 @@ class TFImageDataset:
 			label_encodings = _label_encoding(dataframe[y_col].values, classes)
 			label_encodings = to_categorical(label_encodings)
 
-		dataset = tf.data.Dataset.from_tensor_slices((img_filepaths, label_encodings))
+		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, shuffle=shuffle,
+										batch_size=batch_size, repeat=repeat,
+										random_state=random_state, image_args=image_args)
+
+		return dataset
+
+	def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=False,
+						 random_state=None, image_args=None):
+		dataset = tf.data.Dataset.from_tensor_slices((x, y))
 
 		if self.shard is not None:
 			dataset = dataset.shard(self.shard[0], self.shard[1])
 
 		if shuffle:
-			dataset = dataset.shuffle(buffer_size=len(img_filepaths), seed=random_state)
+			dataset = dataset.shuffle(buffer_size=len(x), seed=random_state)
 
 		if repeat:
 			dataset = dataset.repeat()
@@ -155,11 +195,14 @@ class TFImageDataset:
 				return image, label
 			dataset = dataset.map(read_fn, num_parallel_calls=AUTOTUNE)
 		else:
-			read_fn = _load_image_from_path_label
-			dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
+			if type=='dataframe':
+				read_fn = _load_image_from_path_label
+				dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
+			if type=='numpy':
+				pass
 
 		if self.augmentation_function is not None:
-			def augment_fn (image, label):
+			def augment_fn(image, label):
 				image = self.augmentation_function(image)
 				return image, label
 
