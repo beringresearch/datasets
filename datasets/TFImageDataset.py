@@ -124,7 +124,9 @@ class TFImageDataset:
 	                which will map to the label indices, will be alphanumeric).
 	                The dictionary containing the mapping from class names to class
 	                indices can be obtained via the attribute `class_indices`.
-	            class_mode: one of "categorical"
+	            class_mode: one of "categorical", "raw". Mode for yielding the targets -
+	             "categorical": 2D numpy array of one-hot encoded labels. "raw": numpy array
+	             of values in y_col column(s). Suitable for regression.
 	            batch_size: size of the batches of data (default: 32).
 	            shuffle: whether to shuffle the data (default: True)
 	            repeat: whether to repeat the data (default: False)
@@ -169,6 +171,9 @@ class TFImageDataset:
 		if class_mode == 'categorical':
 			label_encodings = _label_encoding(dataframe[y_col].values, classes)
 			label_encodings = to_categorical(label_encodings)
+
+		if class_mode == 'raw':
+			label_encodings = dataframe[y_col].values
 
 		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, shuffle=shuffle,
 										batch_size=batch_size, repeat=repeat,
