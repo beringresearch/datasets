@@ -8,6 +8,6 @@ setup(name='datasets',
       author='Bering Limited',
       license='Apache 2.0',
       packages=['datasets'],
-      install_requires=['tensorflow<=2.2.0',
-                        'tensorflow-io==0.14.0'],
+      install_requires=['tensorflow',
+                        'tensorflow-io'],
       zip_safe=False)
