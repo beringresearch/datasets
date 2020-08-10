@@ -124,9 +124,9 @@ class TFImageDataset:
 	                which will map to the label indices, will be alphanumeric).
 	                The dictionary containing the mapping from class names to class
 	                indices can be obtained via the attribute `class_indices`.
-	            class_mode: one of "categorical", "raw". Mode for yielding the targets -
+	            class_mode: one of "categorical", "raw", None. Mode for yielding the targets -
 	             "categorical": 2D numpy array of one-hot encoded labels. "raw": numpy array
-	             of values in y_col column(s). Suitable for regression.
+	             of values in y_col column(s). Suitable for regression. None: no targets are returned.
 	            batch_size: size of the batches of data (default: 32).
 	            shuffle: whether to shuffle the data (default: True)
 	            repeat: whether to repeat the data (default: False)
@@ -134,20 +134,8 @@ class TFImageDataset:
 	                target size is different from that of the loaded image.
 	                Supported methods are `"nearest"`, `"bilinear"`, and `"bicubic"`.
 	                By default, `"nearest"` is used.
-	            validadataset = self.__create_dataset(img_filepaths, label_encodings, shuffle=shuffle,
-										batch_size=batch_size, repeat=repeat,
-										random_state=random_state, image_args=image_args)
-
-		return datasette_filenames: Boolean, whether to validate image filenames in
-	                `x_col`. If `True`, invalid images will be ignored. Disabling this
-	                option can lead to speed-up in the execution of this function.
-	                Default: `True`.
-	            random_state: Integer, sets random seed.
-	        # Returns
-	            A `Dataset` yielding tuples of `(x, y)`
-	            where `x` is a NumPy array containing a batch
-	            of images with shape `(batch_size, *target_size, channels)`
-	            and `y` is a NumPy array of corresponding labels.
+	            validate_filenames: Boolean. whether to validate file names on disk (default: True)
+				random_state: integer. Control random seed.
 	    """
 
 		image_args = ImagePreprocessArgs(target_size=target_size, color_mode=color_mode,
@@ -174,6 +162,9 @@ class TFImageDataset:
 
 		if class_mode == 'raw':
 			label_encodings = dataframe[y_col].values
+
+		if class_mode is None:
+			label_encodings = None
 
 		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, shuffle=shuffle,
 										batch_size=batch_size, repeat=repeat,
