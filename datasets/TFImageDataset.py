@@ -12,9 +12,11 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 class ImagePreprocessArgs:
 	def __init__(self, target_size=(299, 299),
+				 dtype=tf.dtypes.uint8,
 				 preserve_aspect_ratio=False,
 				 color_mode='rgb', interpolation='nearest'):
 		self.target_size = target_size
+		self.dtype = dtype
 		self.preserve_aspect_ratio = preserve_aspect_ratio,
 		self.color_mode = color_mode
 		self.interpolation = interpolation
@@ -93,7 +95,8 @@ class TFImageDataset:
 
 	def flow_from_dataframe(self, dataframe, directory=None, x_col='filename', y_col='class',
 							color_mode='rgb', class_mode='categorical', classes=None,
-							target_size=(299, 299), preserve_aspect_ratio=False, batch_size=32,
+							target_size=(299, 299), dtype=tf.dtypes.uint8,
+							preserve_aspect_ratio=False, batch_size=32,
 							shuffle=True, repeat=False, interpolation='nearest', 
 							validate_filenames=True, random_state=None):
 
@@ -116,6 +119,7 @@ class TFImageDataset:
 	            y_col: string or list, column/s in `dataframe` that has the target data.
 	            target_size: tuple of integers `(height, width)`, default: `(256, 256)`.
 	                The dimensions to which all images found will be resized.
+	            dtype: Image data type: tf.dtypes.uint8 or tf.dtypes.uint16
 	            color_mode: one of "grayscale", "rgb". Default: "rgb".
 	                Whether the images will be converted to have 1 or 3 color channels.
 	            classes: optional list of classes (e.g. `['dogs', 'cats']`).
@@ -138,9 +142,11 @@ class TFImageDataset:
 				random_state: integer. Control random seed.
 	    """
 
-		image_args = ImagePreprocessArgs(target_size=target_size, color_mode=color_mode,
+		image_args = ImagePreprocessArgs(target_size=target_size,
+										 color_mode=color_mode,
 										 preserve_aspect_ratio=preserve_aspect_ratio,
-										 interpolation=interpolation)
+										 interpolation=interpolation,
+										 dtype=dtype)
 
 		if directory is not None:
 			img_filepaths = [os.path.join(directory, file) for file in dataframe[x_col].values]
@@ -191,11 +197,13 @@ class TFImageDataset:
 				return image, label
 			dataset = dataset.map(read_fn, num_parallel_calls=AUTOTUNE)
 		else:
-			if type=='dataframe':
+			if type == 'dataframe':
 				read_fn = _load_image_from_path_label
 				dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
-			if type=='numpy':
+			if type == 'numpy':
 				pass
+
+		dataset = dataset.map(partial(_resize_image, image_args=image_args), num_parallel_calls=AUTOTUNE)
 
 		if self.augmentation_function is not None:
 			def augment_fn(image, label):
@@ -204,12 +212,14 @@ class TFImageDataset:
 
 			dataset = dataset.map(augment_fn, num_parallel_calls=AUTOTUNE)
 
+
 		if self.preprocessing_function is not None:
 			def preprocess_fn(image, label):
 				image = self.preprocessing_function(image)
 				return image, label
 
 			dataset = dataset.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
+
 
 		dataset = dataset.batch(batch_size)
 
@@ -222,48 +232,26 @@ class TFImageDataset:
 
 
 def _load_image_from_path_label(path, label, image_args=None):
-
-	return _load_and_preprocess_image(path=path, image_args=image_args), label
-
-def _load_and_preprocess_image(path, image_args=None):
-	image = tf.io.read_file(path)
-	dicom = tf.strings.split(path, '.')[-1] == 'dcm'
-	if not dicom:
-		return _preprocess_image(image, image_args)
-	return _preprocess_dicom(image, image_args)
-
-def _preprocess_dicom(image_bytes, image_args=None):
-
-	image = tfio.image.decode_dicom_image(image_bytes,
-										  color_dim=True, dtype=tf.uint16,
-										  scale='auto',
-										  on_error='strict')[0]
-	image = tf.image.grayscale_to_rgb(image)
-	if image_args.preserve_aspect_ratio:
-		image = tf.image.resize_with_pad(image, *image_args.target_size,
-										 method=image_args.interpolation)
-	else:
-		image = tf.image.resize(image, image_args.target_size,
-								method=image_args.interpolation)
-	image = tf.cast(tf.cast(image, tf.uint16), tf.float32)
-	return image
-
-
-def _preprocess_image(image, image_args=None):
-
 	if image_args.color_mode == 'rgb':
 		channels = 3
 
 	if image_args.color_mode == 'grayscale':
 		channels = 1
 
-	image = tf.image.decode_png(image, channels=channels)
+	image = tf.io.read_file(path)
+	image = tf.io.decode_image(image, channels=channels)
+
+	return image, label
+
+def _resize_image(image, label, image_args=None):
 	if image_args.preserve_aspect_ratio:
-		image = tf.image.resize_with_pad(image, *image_args.target_size, method=image_args.interpolation)
+		image = tf.image.resize_with_pad(image, *image_args.target_size,
+										 method=image_args.interpolation)
 	else:
-		image = tf.image.resize(image, image_args.target_size, method=image_args.interpolation)
-	image = tf.cast(image, tf.float32)
-	return image
+		image = tf.image.resize(image, image_args.target_size,
+								method=image_args.interpolation)
+
+	return image, label
 
 def _label_encoding(vector, classes=None):
 	if classes is None:
