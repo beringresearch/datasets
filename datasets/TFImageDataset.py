@@ -192,18 +192,17 @@ class TFImageDataset:
 			dataset = dataset.repeat()
 
 		if self.read_function is not None:
-			def read_fn(path, label):
+			def read_fn(path, label, image_args):
 				image = self.read_function(path)
+				image = _resize_image(image, image_args)
 				return image, label
-			dataset = dataset.map(read_fn, num_parallel_calls=AUTOTUNE)
+			dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
 		else:
 			if type == 'dataframe':
 				read_fn = _load_image_from_path_label
 				dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
 			if type == 'numpy':
 				pass
-
-		dataset = dataset.map(partial(_resize_image, image_args=image_args), num_parallel_calls=AUTOTUNE)
 
 		if self.augmentation_function is not None:
 			def augment_fn(image, label):
@@ -240,10 +239,11 @@ def _load_image_from_path_label(path, label, image_args=None):
 
 	image = tf.io.read_file(path)
 	image = tf.io.decode_image(image, channels=channels)
+	image = _resize_image(image, image_args)
 
 	return image, label
 
-def _resize_image(image, label, image_args=None):
+def _resize_image(image, image_args=None):
 	if image_args.preserve_aspect_ratio:
 		image = tf.image.resize_with_pad(image, *image_args.target_size,
 										 method=image_args.interpolation)
@@ -251,7 +251,7 @@ def _resize_image(image, label, image_args=None):
 		image = tf.image.resize(image, image_args.target_size,
 								method=image_args.interpolation)
 
-	return image, label
+	return image
 
 def _label_encoding(vector, classes=None):
 	if classes is None:
