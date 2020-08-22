@@ -241,6 +241,8 @@ def _load_image_from_path_label(path, label, image_args=None):
 	image = tf.io.decode_image(image, channels=channels)
 	image = _resize_image(image, image_args)
 
+	image = tf.cast(image, tf.float32)
+
 	return image, label
 
 def _resize_image(image, image_args=None):
