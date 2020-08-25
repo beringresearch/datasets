@@ -6,8 +6,8 @@ from tensorflow.keras.utils import to_categorical
 
 import tensorflow as tf
 import tensorflow_io as tfio
-import numpy as np
 
+import numpy as np
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 class ImagePreprocessArgs:
@@ -93,7 +93,7 @@ class TFImageDataset:
 
 
 
-	def flow_from_dataframe(self, dataframe, directory=None, x_col='filename', y_col='class',
+	def flow_from_dataframe(self, dataframe, directory=None, x_col='filename', y_col=None,
 							color_mode='rgb', class_mode='categorical', classes=None,
 							target_size=(299, 299), dtype=tf.dtypes.uint8,
 							preserve_aspect_ratio=False, batch_size=32,
@@ -122,12 +122,10 @@ class TFImageDataset:
 	            dtype: Image data type: tf.dtypes.uint8 or tf.dtypes.uint16
 	            color_mode: one of "grayscale", "rgb". Default: "rgb".
 	                Whether the images will be converted to have 1 or 3 color channels.
-	            classes: optional list of classes (e.g. `['dogs', 'cats']`).
+	            classes: optional list or dict of classes (e.g. `['dogs', 'cats']`).
 	                Default: None. If not provided, the list of classes will be
 	                automatically inferred from the `y_col`,
 	                which will map to the label indices, will be alphanumeric).
-	                The dictionary containing the mapping from class names to class
-	                indices can be obtained via the attribute `class_indices`.
 	            class_mode: one of "categorical", "raw", None. Mode for yielding the targets -
 	             "categorical": 2D numpy array of one-hot encoded labels. "raw": numpy array
 	             of values in y_col column(s). Suitable for regression. None: no targets are returned.
@@ -163,8 +161,12 @@ class TFImageDataset:
 
 
 		if class_mode == 'categorical':
-			label_encodings = _label_encoding(dataframe[y_col].values, classes)
-			label_encodings = to_categorical(label_encodings)
+			if isinstance(y_col, str) :
+				label_encodings = _label_encoding(dataframe[y_col].values, classes)
+				label_encodings = to_categorical(label_encodings)
+			else:
+				label_encodings = {key: _label_encoding(dataframe[key], classes[key]) for key in list(classes.keys())}
+				label_encodings = {key: to_categorical(label_encodings[key]) for key in list(label_encodings.keys())}
 
 		if class_mode == 'raw':
 			label_encodings = dataframe[y_col].values
