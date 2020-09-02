@@ -239,7 +239,7 @@ def _load_image_from_path_label(path, label, image_args=None):
 		channels = 1
 
 	image = tf.io.read_file(path)
-	image = tf.io.decode_image(image, channels=channels)
+	image = tf.io.decode_image(image, channels=channels, dtype=image_args.dtype)
 	image = _resize_image(image, image_args)
 
 	image = tf.cast(image, tf.float32)
