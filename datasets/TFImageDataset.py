@@ -37,9 +37,11 @@ class TFImageDataset:
         	s+1. Doing so reduces the step time to the maximum
         	(as opposed to the sum) of the training and the time it takes to
         	extract the data.
-        prefetch_gpu: Boolean. A transformation that prefetches dataset values
+        prefetch_gpu: String. A transformation that prefetches dataset values
         	to the given device. This is useful if you'd like to prefetch
-        	images directly to a GPU.
+        	images directly to a GPU. Acceptible values - None or
+        	'/device:GPU:0' where 0 can be replaced with another valid
+        GPU index.
 
      # Returns
             An `Iterator` yielding tuples of `(x, y)`
@@ -54,7 +56,7 @@ class TFImageDataset:
 				 read_function=None,
 				 augmentation_function=None,
 				 preprocessing_function=None, shard=None,
-				 prefetch=True, prefetch_gpu=False):
+				 prefetch=True, prefetch_gpu=None):
 
 		self.read_function=read_function
 		self.augmentation_function = augmentation_function
