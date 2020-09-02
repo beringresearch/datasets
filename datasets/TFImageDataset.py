@@ -3,10 +3,7 @@ import os
 
 from functools import partial
 from tensorflow.keras.utils import to_categorical
-
 import tensorflow as tf
-import tensorflow_io as tfio
-
 import numpy as np
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
