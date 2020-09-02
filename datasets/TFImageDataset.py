@@ -65,7 +65,7 @@ class TFImageDataset:
 		self.prefetch_gpu = prefetch_gpu
 		self.shard = shard
 
-	def flow(self, x, y=None, batch_size=32, shuffle=True, repeat=False, random_state=None):
+	def flow(self, x, y=None, batch_size=32, shuffle=True, repeat=True, random_state=None):
 		"""Takes data & label arrays, generates batches of augmented data.
 
 			# Arguments
@@ -81,7 +81,7 @@ class TFImageDataset:
 				batch_size: Int (default: 32).
 				shuffle: Boolean (default: True).
 				random_state: Int (default: None).
-				repeat: whether to repeat the data (default: False)
+				repeat: whether to repeat the data (default: True)
 		"""
 
 		dataset = self.__create_dataset('numpy', x, y, shuffle=shuffle,
@@ -96,7 +96,7 @@ class TFImageDataset:
 							color_mode='rgb', class_mode='categorical', classes=None,
 							target_size=(299, 299), dtype=tf.dtypes.uint8,
 							preserve_aspect_ratio=False, batch_size=32,
-							shuffle=True, repeat=False, interpolation='nearest', 
+							shuffle=True, repeat=True, interpolation='nearest',
 							validate_filenames=True, random_state=None):
 
 		"""Takes the dataframe and the path to a directory
@@ -130,7 +130,7 @@ class TFImageDataset:
 	             of values in y_col column(s). Suitable for regression. None: no targets are returned.
 	            batch_size: size of the batches of data (default: 32).
 	            shuffle: whether to shuffle the data (default: True)
-	            repeat: whether to repeat the data (default: False)
+	            repeat: whether to repeat the data (default: True)
 	            interpolation: Interpolation method used to resample the image if the
 	                target size is different from that of the loaded image.
 	                Supported methods are `"nearest"`, `"bilinear"`, and `"bicubic"`.
@@ -179,7 +179,7 @@ class TFImageDataset:
 
 		return dataset
 
-	def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=False,
+	def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=True,
 						 random_state=None, image_args=None):
 		dataset = tf.data.Dataset.from_tensor_slices((x, y))
 
