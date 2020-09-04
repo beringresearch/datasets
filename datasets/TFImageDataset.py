@@ -247,12 +247,14 @@ def _load_image_from_path_label(path, label, image_args=None):
 	return image, label
 
 def _resize_image(image, image_args=None):
+	dtype = image.dtype
 	if image_args.preserve_aspect_ratio:
 		image = tf.image.resize_with_pad(image, *image_args.target_size,
 										 method=image_args.interpolation)
 	else:
 		image = tf.image.resize(image, image_args.target_size,
 								method=image_args.interpolation)
+	image = tf.cast(image, dtype)
 
 	return image
 
