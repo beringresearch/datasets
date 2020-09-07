@@ -10,10 +10,6 @@ def random_contrast(x, lower=0.1, upper=5):
     x = tf.image.random_contrast(x, lower, upper)
     return x
 
-def random_flip(x):
-    x = tf.image.random_flip_left_right(x)
-    return x
-
 def flip(x):
     x = tf.image.flip_left_right(x)
     return x
@@ -56,7 +52,7 @@ def random_center_crop(x):
     x = tf.image.resize(x, img_shape[:2])
     return tf.cast(x, dtype)
 
-def random_erase(x, p=0.5, pixel_level=True):
+def random_erase(x, p=1.0, pixel_level=True):
     dtype = x.dtype
     if dtype is tf.uint8:
         max_val = 255
