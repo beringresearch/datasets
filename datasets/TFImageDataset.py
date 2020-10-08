@@ -184,28 +184,26 @@ class TFImageDataset:
         if class_mode is None:
             label_encodings = None
 
-        if isinstance(img_filepaths, tuple):
-            dataset = self.__create_multi_input_dataset('dataframe', img_filepaths, label_encodings, shuffle=shuffle,
-                                                        batch_size=batch_size, repeat=repeat,
-                                                        random_state=random_state, image_args=image_args)
-            return dataset
-
         dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, shuffle=shuffle,
                                         batch_size=batch_size, repeat=repeat,
                                         random_state=random_state, image_args=image_args)
 
         return dataset
 
-    def __create_multi_input_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=True,
-                                     random_state=None, image_args=None):
-        n_rows = len(x)
+    def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=True,
+                         random_state=None, image_args=None):
+
+        n_rows = 1
+        if isinstance(x, tuple):
+            n_rows = len(x)
+
         dataset = tf.data.Dataset.from_tensor_slices((x, y))
 
         if self.shard is not None:
             dataset = dataset.shard(self.shard[0], self.shard[1])
 
         if shuffle:
-            dataset = dataset.shuffle(buffer_size=len(x), seed=random_state)
+            dataset = dataset.shuffle(buffer_size=len(y), seed=random_state)
 
         dataset = dataset.batch(batch_size)
 
@@ -250,62 +248,15 @@ class TFImageDataset:
             dataset = dataset.apply(tf.data.experimental.prefetch_to_device(self.prefetch_gpu))
 
         dataset = dataset.map(lambda x, y: (_unflatten_multi_input(x, n_rows), y))
-        dataset = dataset.map(lambda x, y: ({f"input_{i+1}": x[i] for i in range(n_rows)}, y),
-                              num_parallel_calls=AUTOTUNE)
 
-        return dataset
-
-
-    def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=True,
-                         random_state=None, image_args=None):
-        dataset = tf.data.Dataset.from_tensor_slices((x, y))
-
-        if self.shard is not None:
-            dataset = dataset.shard(self.shard[0], self.shard[1])
-
-        if shuffle:
-            dataset = dataset.shuffle(buffer_size=len(x), seed=random_state)
-
-        if repeat:
-            dataset = dataset.repeat()
-
-        if self.read_function is not None:
-            def read_fn(path, label, image_args):
-                image = self.read_function(path)
-                image = _resize_image(image, image_args)
-                return image, label
-            dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
+        if n_rows > 1:
+            dataset = dataset.map(lambda x, y: ({f"input_{i+1}": x[i] for i in range(n_rows)}, y),
+                                  num_parallel_calls=AUTOTUNE)
         else:
-            if type == 'dataframe':
-                read_fn = _load_image_from_path_label
-                dataset = dataset.map(partial(read_fn, image_args=image_args), num_parallel_calls=AUTOTUNE)
-            if type == 'numpy':
-                pass
-
-        if self.augmentation_function is not None:
-            def augment_fn(image, label):
-                image = self.augmentation_function(image)
-                return image, label
-
-            dataset = dataset.map(augment_fn, num_parallel_calls=AUTOTUNE)
-
-
-        if self.preprocessing_function is not None:
-            def preprocess_fn(image, label):
-                image = self.preprocessing_function(image)
-                return image, label
-
-            dataset = dataset.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
-
-
-        dataset = dataset.batch(batch_size)
-
-        if self.prefetch:
-            dataset = dataset.prefetch(buffer_size=AUTOTUNE)
-        if self.prefetch_gpu:
-            dataset = dataset.apply(tf.data.experimental.prefetch_to_device(self.prefetch_gpu))
+            dataset = dataset.map(lambda x, y: (x[0], y), num_parallel_calls=AUTOTUNE)
 
         return dataset
+
 
 def _build_multi_input_load_fn(image_args=None):
 
