@@ -16,4 +16,4 @@ python3 install --editable .
 
 ## Getting Started
 
-Check out [example notebook](https://github.com/beringresearch/datasets/blob/master/examples/TFImageDataset.ipynb) to get started with the package.
+Check out [example notebook](https://github.com/beringresearch/datasets/blob/master/examples/Import%20Images%20from%20DataFrame.ipynb) to get started with the package.
