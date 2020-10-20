@@ -7,6 +7,7 @@ from tensorflow.keras.utils import to_categorical
 import tensorflow as tf
 import tensorflow_io as tfio
 import numpy as np
+import pandas as pd
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -148,13 +149,23 @@ class TFImageDataset:
 										 interpolation=interpolation,
 										 dtype=dtype)
 
+		multilabel = False
+		if type(x_col) is list:
+			multilabel = True
+
 		if directory is not None:
-			img_filepaths = [os.path.join(directory, file) for file in dataframe[x_col].values]
+			if multilabel:
+				img_filepaths = {}
+				for feature in x_col:
+					img_filepaths[feature] = directory + os.sep + dataframe[feature].values
+				img_filepaths = pd.DataFrame(img_filepaths)
+			else:
+				img_filepaths = dataframe[x_col].apply(lambda row: os.path.join(directory, row))
 		else:
-			img_filepaths = dataframe[x_col].values
+			img_filepaths = dataframe[x_col]
 
 		if validate_filenames:
-			exists = [os.path.exists(f) for f in img_filepaths]
+			exists = [os.path.exists(f) for f in np.unique(img_filepaths.values.ravel('K'))]
 			n_missing = len(exists) - np.sum(exists)
 			print("Missing images: " + str(n_missing))
 
@@ -172,15 +183,21 @@ class TFImageDataset:
 		if class_mode is None:
 			label_encodings = None
 
-		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, shuffle=shuffle,
+		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, multilabel=multilabel, shuffle=shuffle,
 										batch_size=batch_size, repeat=repeat,
 										random_state=random_state, image_args=image_args)
 
 		return dataset
 
-	def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=False,
+	def __create_dataset(self, type, x, y, multilabel=False, shuffle=True, batch_size=32, repeat=False,
 						 random_state=None, image_args=None):
-		dataset = tf.data.Dataset.from_tensor_slices((x, y))
+
+		if multilabel:
+			inputs = x.to_dict(orient='list')
+		else:
+			inputs = list(x.values)
+
+		dataset = tf.data.Dataset.from_tensor_slices((inputs, y))
 
 		if self.shard is not None:
 			dataset = dataset.shard(self.shard[0], self.shard[1])
