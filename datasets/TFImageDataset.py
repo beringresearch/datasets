@@ -149,12 +149,12 @@ class TFImageDataset:
 										 interpolation=interpolation,
 										 dtype=dtype)
 
-		multilabel = False
+		multiinput = False
 		if type(x_col) is list:
-			multilabel = True
+			multiinput = True
 
 		if directory is not None:
-			if multilabel:
+			if multiinput:
 				img_filepaths = {}
 				for feature in x_col:
 					img_filepaths[feature] = directory + os.sep + dataframe[feature].values
@@ -183,16 +183,17 @@ class TFImageDataset:
 		if class_mode is None:
 			label_encodings = None
 
-		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, multilabel=multilabel, shuffle=shuffle,
+		dataset = self.__create_dataset('dataframe', img_filepaths, label_encodings, multiinput=multiinput,
+										shuffle=shuffle,
 										batch_size=batch_size, repeat=repeat,
 										random_state=random_state, image_args=image_args)
 
 		return dataset
 
-	def __create_dataset(self, type, x, y, multilabel=False, shuffle=True, batch_size=32, repeat=False,
+	def __create_dataset(self, type, x, y, multiinput=False, shuffle=True, batch_size=32, repeat=False,
 						 random_state=None, image_args=None):
 
-		if multilabel:
+		if multiinput:
 			inputs = x.to_dict(orient='list')
 		else:
 			inputs = list(x.values)
@@ -237,6 +238,9 @@ class TFImageDataset:
 
 			dataset = dataset.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
+		if multiinput:
+			dataset = dataset.map(partial(_to_dictionary, keys=list(inputs.keys())), num_parallel_calls=AUTOTUNE)
+
 
 		dataset = dataset.batch(batch_size)
 
@@ -245,7 +249,12 @@ class TFImageDataset:
 		if self.prefetch_gpu:
 			dataset = dataset.apply(tf.data.experimental.prefetch_to_device(self.prefetch_gpu))
 
+
 		return dataset
+
+def _to_dictionary(images, label, keys=None):
+	output = ({keys[i]: images[i] for i in range(len(keys))}, label)
+	return output
 
 
 def _load_image_from_path_label(path, label, image_args=None):
