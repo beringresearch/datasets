@@ -146,23 +146,25 @@ class TFImageDataset:
                                          interpolation=interpolation,
                                          dtype=dtype)
 
+        if isinstance(x_col, list):
+            x_col = tuple(x_col)
+
         if directory is not None:
             if isinstance(x_col, str):
                 img_filepaths = [os.path.join(directory, f) for f in dataframe[x_col].values]
-            elif isinstance(x_col, tuple) or isinstance(x_col, list):
+            elif isinstance(x_col, tuple):
                 img_filepaths = tuple([os.path.join(directory, f) for f in dataframe[col]] for col in x_col)
         else:
             if isinstance(x_col, str):
                 img_filepaths = dataframe[x_col].values
-            elif isinstance(x_col, tuple) or isinstance(x_col, list):
+            elif isinstance(x_col, tuple):
                 img_filepaths = tuple(dataframe[col] for col in x_col)
 
         if validate_filenames:
             if isinstance(x_col, str):
                 exists = [os.path.exists(f) for f in img_filepaths]
-
-            elif isinstance(x_col, tuple) or isinstance(x_col, list):
-                exists = [os.path.exists(f) for col in x_col for f in dataframe[col]]
+            elif isinstance(x_col, tuple):
+                exists = [os.path.exists(f) for tupl in img_filepaths for f in tupl]
 
             n_missing = len(exists) - np.sum(exists)
             print("Missing images: " + str(n_missing))
@@ -193,9 +195,9 @@ class TFImageDataset:
     def __create_dataset(self, type, x, y, shuffle=True, batch_size=32, repeat=True,
                          random_state=None, image_args=None):
 
-        n_rows = 1
+        n_inputs = 1
         if isinstance(x, tuple):
-            n_rows = len(x)
+            n_inputs = len(x)
 
         dataset = tf.data.Dataset.from_tensor_slices((x, y))
 
@@ -205,15 +207,13 @@ class TFImageDataset:
         if shuffle:
             dataset = dataset.shuffle(buffer_size=len(y), seed=random_state)
 
-        dataset = dataset.batch(batch_size)
-
         if repeat:
             dataset = dataset.repeat()
 
         if self.read_function is not None:
             @tf.function
             def read_fn(paths, label, image_args):
-                flattened_paths = _flatten_multi_input(paths)
+                flattened_paths = tf.reshape(paths, (-1,))
                 images = tf.map_fn(self.read_function, flattened_paths,
                                    fn_output_signature=image_args.dtype)
                 images = tf.map_fn(lambda x: _resize_image(x, image_args=image_args), images,
@@ -247,13 +247,13 @@ class TFImageDataset:
         if self.prefetch_gpu:
             dataset = dataset.apply(tf.data.experimental.prefetch_to_device(self.prefetch_gpu))
 
-        dataset = dataset.map(lambda x, y: (_unflatten_multi_input(x, n_rows), y))
+        dataset = dataset.batch(batch_size)
 
-        if n_rows > 1:
-            dataset = dataset.map(lambda x, y: ({f"input_{i+1}": x[i] for i in range(n_rows)}, y),
+        if n_inputs > 1:
+            dataset = dataset.map(lambda x, y: ({f"input_{i+1}": x[:, i] for i in range(n_inputs)}, y),
                                   num_parallel_calls=AUTOTUNE)
         else:
-            dataset = dataset.map(lambda x, y: (x[0], y), num_parallel_calls=AUTOTUNE)
+            dataset = dataset.map(lambda x, y: (x[:, 0], y), num_parallel_calls=AUTOTUNE)
 
         return dataset
 
@@ -279,43 +279,6 @@ def _build_multi_input_load_fn(image_args=None):
 
     return _load_image_from_path_label
 
-def _flatten_multi_input(paths):
-    paths_flattened = tf.reshape(paths, (-1,))
-    return paths_flattened
-
-def _unflatten_multi_input(images, n_rows):
-    img_shape = tf.shape(images)
-    images_reshaped = tf.reshape(images,
-                                 (n_rows, -1, img_shape[1], img_shape[2], img_shape[3]))
-    return images_reshaped
-
-"""def _build_multi_input_load_fn(paths, image_args=None):
-    n_rows = len(paths)
-
-    if image_args.color_mode == 'rgb':
-        channels = 3
-
-    if image_args.color_mode == 'grayscale':
-        channels = 1
-
-    @tf.function
-    def _load_image_from_path_label(paths, labels, image_args=None):
-        paths_flattened = tf.reshape(paths, (-1,))
-        images_bytes = tf.map_fn(tf.io.read_file, paths_flattened)
-        images_decoded = tf.map_fn(lambda x: tf.io.decode_png(x, channels=channels),
-                                   images_bytes, fn_output_signature=image_args.dtype)
-        img_shape = tf.shape(images_decoded)
-
-        images_reshaped = tf.reshape(images_decoded,
-                                     (n_rows, -1, img_shape[1], img_shape[2], img_shape[3]))
-        images_resized = tf.map_fn(lambda x: _resize_image(x, image_args), images_reshaped,
-                                   fn_output_signature=image_args.dtype)
-
-        return {f"input_{i+1}": images_resized[i] for i in range(n_rows)}, labels
-
-    return _load_image_from_path_label
-"""
-
 def _load_image_from_path_label(path, label, image_args=None):
     if image_args.color_mode == 'rgb':
         channels = 3
@@ -340,7 +303,6 @@ def _resize_image(image, image_args=None):
         image = tf.image.resize(image, image_args.target_size,
                                 method=image_args.interpolation)
     image = tf.cast(image, dtype)
-
     return image
 
 def _label_encoding(vector, classes=None):
