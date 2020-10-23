@@ -15,6 +15,7 @@ def read_mask_from_filepath(filepath, **kwargs):
     img = tf.image.decode_png(img_bytes, channels=1, **kwargs)
     return img
 
+@tf.function
 def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
                              read_mask_fn=read_mask_from_filepath, crop_shape=(299, 299),
                              crop_masked_img=True, soft_mask=True):
@@ -36,9 +37,12 @@ def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
     """
 
     if isinstance(paths, dict):
-        paths = paths.values()
+        img = read_img_fn(paths[list(paths.keys())[0]])
+        mask = read_mask_fn(paths[list(paths.keys())[1]])
+    else:
+        img = read_img_fn(paths[0])
+        mask = read_mask_fn(paths[1])
 
-    img, mask = (read_fn(path) for read_fn, path in zip((read_img_fn, read_mask_fn), paths))
     mask /= mask.dtype.max
     mask_hard = tf.cast(tf.math.round(mask), dtype=img.dtype)
 
@@ -57,7 +61,7 @@ def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
     cropped_img = centered_img_crop(img_to_crop, crop_center_coords, crop_shape)
     return cropped_img
 
-
+@tf.function
 def centered_img_crop(img, center_pixel_coords, crop_shape):
     """Extracts a crop from an centered around the coordinates provided
     in center_pixel_coords.
@@ -74,12 +78,15 @@ def centered_img_crop(img, center_pixel_coords, crop_shape):
         img_crop: Tensor
     """
 
-    crop_shape = tf.cast(crop_shape, tf.int64)
+    center_pixel_coords = tf.cast(center_pixel_coords, tf.int32)
+    crop_shape = tf.cast(crop_shape, tf.int32)
 
-    offset_height = max(center_pixel_coords[0] - crop_shape[0] // 2, 0)
-    offset_height = min(offset_height, img.shape[0] - crop_shape[0])
-    offset_width = max(center_pixel_coords[1] - crop_shape[1] // 2, 0)
-    offset_width = min(offset_width, img.shape[1] - crop_shape[1])
+    offset_height = tf.math.maximum(tf.math.floordiv(center_pixel_coords[0] - crop_shape[0], tf.constant(2, dtype=tf.int32)),
+                                    tf.constant(0, dtype=tf.int32))
+    offset_height = tf.math.minimum(offset_height, tf.shape(img)[0] - crop_shape[0])
+    offset_width = tf.math.maximum(tf.math.floordiv(center_pixel_coords[1] - crop_shape[1], tf.constant(2, dtype=tf.int32)),
+                                   tf.constant(0, dtype=tf.int32))
+    offset_width = tf.math.minimum(offset_width, tf.shape(img)[1] - crop_shape[1])
 
     img_crop = tf.image.crop_to_bounding_box(
         img, offset_height=offset_height, offset_width=offset_width,
@@ -87,7 +94,7 @@ def centered_img_crop(img, center_pixel_coords, crop_shape):
 
     return img_crop
 
-
+@tf.function
 def select_random_segmented_pixel(mask):
     """Takes a binary mask and outputs the coordinates of a random positive point.
 
@@ -96,8 +103,14 @@ def select_random_segmented_pixel(mask):
         Assumes binary values [0, 1] where 1 denotes the candidates for sampling.
     """
     mask = tf.squeeze(mask)
-    positive_segmentation_tensor = np.array([[1 for i in range(tf.shape(mask)[0])]
-                                             for j in range(tf.shape(mask)[1])])
+
+    positive_segmentation_tensor = []
+    for i in range(tf.shape(mask)[0]):
+        positive_row = []
+        for j in range(tf.shape(mask)[1]):
+            positive_row.append(1)
+        positive_segmentation_tensor.append(positive_row)
+
     segmented_pixel_coords = tf.where(tf.equal(mask, positive_segmentation_tensor))
 
     random_coord_idx = tf.random.uniform([], maxval=tf.shape(segmented_pixel_coords)[0], dtype=tf.int32)
@@ -121,21 +134,21 @@ def draw_center_crop_box(img, center_pixel_coords, crop_shape):
         img_crop: Tensor
     """
 
-    if len(img.shape) < 4:
+    if len(tf.shape(img)) < 4:
         img = tf.expand_dims(img, axis=0)
     img = tf.cast(img, tf.float32) / img.dtype.max
 
-    y_min = max(center_pixel_coords[0] - crop_shape[0] // 2, 0)
-    y_min = min(y_min, img.shape[1] - crop_shape[0])
+    y_min = tf.math.maximum(tf.math.floordiv(center_pixel_coords[0] - crop_shape[0], 2), 0)
+    y_min = tf.math.minimum(y_min, tf.shape(img)[1] - crop_shape[0])
     y_max = y_min + crop_shape[0]
-    y_min /= img.shape[1]
-    y_max /= img.shape[1]
+    y_min /= tf.shape(img)[1]
+    y_max /= tf.shape(img)[1]
 
-    x_min = max(center_pixel_coords[1] - crop_shape[1] // 2, 0)
-    x_min = min(x_min, img.shape[2] - crop_shape[1])
+    x_min = tf.math.maximum(tf.math.floordiv(center_pixel_coords[1] - crop_shape[1], 2), 0)
+    x_min = tf.math.minimum(x_min, tf.shape(img)[2] - crop_shape[1])
     x_max = x_min + crop_shape[1]
-    x_min /= img.shape[2]
-    x_max /= img.shape[2]
+    x_min /= tf.shape(img)[2]
+    x_max /= tf.shape(img)[2]
 
     box = np.array([y_min, x_min, y_max, x_max])
     boxes = box.reshape([1, 1, 4])
