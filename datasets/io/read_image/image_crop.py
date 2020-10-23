@@ -81,11 +81,12 @@ def centered_img_crop(img, center_pixel_coords, crop_shape):
     center_pixel_coords = tf.cast(center_pixel_coords, tf.int32)
     crop_shape = tf.cast(crop_shape, tf.int32)
 
-    offset_height = tf.math.maximum(tf.math.floordiv(center_pixel_coords[0] - crop_shape[0], tf.constant(2, dtype=tf.int32)),
-                                    tf.constant(0, dtype=tf.int32))
+    min_val = tf.constant(0, dtype=tf.int32)
+    two = tf.constant(2, dtype=tf.int32)
+
+    offset_height = tf.math.maximum(center_pixel_coords[0] - crop_shape[0] // two, min_val)
     offset_height = tf.math.minimum(offset_height, tf.shape(img)[0] - crop_shape[0])
-    offset_width = tf.math.maximum(tf.math.floordiv(center_pixel_coords[1] - crop_shape[1], tf.constant(2, dtype=tf.int32)),
-                                   tf.constant(0, dtype=tf.int32))
+    offset_width = tf.math.maximum(center_pixel_coords[1] - crop_shape[1] // two, min_val)
     offset_width = tf.math.minimum(offset_width, tf.shape(img)[1] - crop_shape[1])
 
     img_crop = tf.image.crop_to_bounding_box(
@@ -118,6 +119,7 @@ def select_random_segmented_pixel(mask):
     return random_segmented_coord
 
 
+@tf.function
 def draw_center_crop_box(img, center_pixel_coords, crop_shape):
     """Draws a bounding box centered around the coordinates provided
     in center_pixel_coords.
@@ -134,24 +136,30 @@ def draw_center_crop_box(img, center_pixel_coords, crop_shape):
         img_crop: Tensor
     """
 
+    center_pixel_coords = tf.cast(center_pixel_coords, tf.int32)
+    crop_shape = tf.cast(crop_shape, tf.int32)
+
     if len(tf.shape(img)) < 4:
         img = tf.expand_dims(img, axis=0)
     img = tf.cast(img, tf.float32) / img.dtype.max
 
-    y_min = tf.math.maximum(tf.math.floordiv(center_pixel_coords[0] - crop_shape[0], 2), 0)
+    min_val = tf.constant(0, dtype=tf.int32)
+    two = tf.constant(2, dtype=tf.int32)
+
+    y_min = tf.math.maximum(center_pixel_coords[0] - crop_shape[0] // two, min_val)
     y_min = tf.math.minimum(y_min, tf.shape(img)[1] - crop_shape[0])
     y_max = y_min + crop_shape[0]
     y_min /= tf.shape(img)[1]
     y_max /= tf.shape(img)[1]
 
-    x_min = tf.math.maximum(tf.math.floordiv(center_pixel_coords[1] - crop_shape[1], 2), 0)
+    x_min = tf.math.maximum(center_pixel_coords[1] - crop_shape[1] // two, min_val)
     x_min = tf.math.minimum(x_min, tf.shape(img)[2] - crop_shape[1])
     x_max = x_min + crop_shape[1]
     x_min /= tf.shape(img)[2]
     x_max /= tf.shape(img)[2]
 
-    box = np.array([y_min, x_min, y_max, x_max])
-    boxes = box.reshape([1, 1, 4])
+    box = tf.cast([y_min, x_min, y_max, x_max], dtype=tf.float32)
+    boxes = tf.reshape(box, [1, 1, 4])
 
-    colors = np.array([[1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0]])
-    return tf.image.draw_bounding_boxes(img, boxes, colors)
+    colors = tf.cast([[1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0]], dtype=tf.float32)
+    return tf.squeeze(tf.image.draw_bounding_boxes(img, boxes, colors))
