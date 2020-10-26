@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 
 def read_image_from_filepath(filepath, **kwargs):
@@ -20,7 +19,7 @@ def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
                              read_mask_fn=read_mask_from_filepath, crop_shape=(299, 299),
                              crop_masked_img=True, soft_mask=True):
     """Reads an image and a mask from disk using the provided read functions
-    and returns a randomly selected crop of the requested size that is centered around a
+    and returns a randomly selected image crop of the requested size that is centered around a
     segmented pixel.
 
     The mask is assumed to be scaled within the usual range for the provided dtype (e.g.
@@ -63,7 +62,7 @@ def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
 
 @tf.function
 def centered_img_crop(img, center_pixel_coords, crop_shape):
-    """Extracts a crop from an centered around the coordinates provided
+    """Extracts a crop from an image centered around the coordinates provided
     in center_pixel_coords.
 
     If the requested crop would extend beyond the edge of the image it will be constrained
@@ -100,7 +99,7 @@ def select_random_segmented_pixel(mask):
     """Takes a binary mask and outputs the coordinates of a random positive point.
 
     Args:
-        mask - 2D Tensor or 3D where one dimension is size 1. 
+        mask - 2D Tensor or 3D where one dimension is size 1.
         Assumes binary values [0, 1] where 1 denotes the candidates for sampling.
     """
     mask = tf.squeeze(mask)
