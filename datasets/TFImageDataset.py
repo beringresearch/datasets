@@ -222,6 +222,8 @@ class TFImageDataset:
 				pass
 
 		dataset = dataset.map(partial(_resize_image, image_args=image_args), num_parallel_calls=AUTOTUNE)
+		if multiinput:
+			dataset = dataset.map(partial(_to_dictionary, keys=list(inputs.keys())), num_parallel_calls=AUTOTUNE)
 
 		if self.augmentation_function is not None:
 			def augment_fn(image, label):
@@ -238,10 +240,6 @@ class TFImageDataset:
 
 			dataset = dataset.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
-		if multiinput:
-			dataset = dataset.map(partial(_to_dictionary, keys=list(inputs.keys())), num_parallel_calls=AUTOTUNE)
-
-
 		dataset = dataset.batch(batch_size)
 
 		if self.prefetch:
@@ -253,7 +251,7 @@ class TFImageDataset:
 		return dataset
 
 def _to_dictionary(images, label, keys=None):
-	output = ({keys[i]: images[i] for i in range(len(keys))}, label)
+	output = ({keys[i]: images[i] for i, _ in enumerate(keys)}, label)
 	return output
 
 

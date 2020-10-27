@@ -15,9 +15,10 @@ def read_mask_from_filepath(filepath, **kwargs):
     return img
 
 @tf.function
-def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
-                             read_mask_fn=read_mask_from_filepath, crop_shape=(299, 299),
-                             crop_masked_img=True, soft_mask=True):
+def crop_image_to_mask(ds,
+    img_key='images', mask_key='masks',
+    crop_shape=(299, 299),
+    crop_masked_img=True, soft_mask=True):
     """Reads an image and a mask from disk using the provided read functions
     and returns a randomly selected image crop of the requested size that is centered around a
     segmented pixel.
@@ -26,21 +27,17 @@ def read_and_crop_image_mask(paths, read_img_fn=read_image_from_filepath,
     0-255 for tf.uint8).
 
     Args:
-        paths: list/dict. The first value is assumed to be the image and the second a mask.
-        read_img_fn: function(x). Function to read image from disk.
-        read_mask_fn: function(x). Function to read mask from disk.
+        ds: Tensorflow dataset with named inputs. One for image, the other for masks
+        img_key: string. Field name referring to images values in ds.
+        mask_key: string. Field name referring to masks values in ds.
         crop_shape: tuple(2). Requested crop size.
         crop_masked_img: boolean. If true, crops masked image rather than original.
         soft_mask: boolean. If true, the soft image mask is applied to the image,
             rather than a hard one.
     """
 
-    if isinstance(paths, dict):
-        img = read_img_fn(paths[list(paths.keys())[0]])
-        mask = read_mask_fn(paths[list(paths.keys())[1]])
-    else:
-        img = read_img_fn(paths[0])
-        mask = read_mask_fn(paths[1])
+    img = ds[img_key]
+    mask = ds[mask_key]
 
     mask /= mask.dtype.max
     mask_hard = tf.cast(tf.math.round(mask), dtype=img.dtype)
@@ -104,13 +101,7 @@ def select_random_segmented_pixel(mask):
     """
     mask = tf.squeeze(mask)
 
-    positive_segmentation_tensor = []
-    for i in range(tf.shape(mask)[0]):
-        positive_row = []
-        for j in range(tf.shape(mask)[1]):
-            positive_row.append(1)
-        positive_segmentation_tensor.append(positive_row)
-
+    positive_segmentation_tensor = tf.ones(tf.shape(mask), dtype=tf.uint8)
     segmented_pixel_coords = tf.where(tf.equal(mask, positive_segmentation_tensor))
 
     random_coord_idx = tf.random.uniform([], maxval=tf.shape(segmented_pixel_coords)[0], dtype=tf.int32)
