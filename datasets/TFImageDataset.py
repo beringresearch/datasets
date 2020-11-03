@@ -211,7 +211,6 @@ class TFImageDataset:
             dataset = dataset.repeat()
 
         if self.read_function is not None:
-            @tf.function
             def read_fn(paths, label, image_args):
                 flattened_paths = tf.reshape(paths, (-1,))
                 images = tf.map_fn(self.read_function, flattened_paths,
