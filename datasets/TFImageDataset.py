@@ -9,6 +9,9 @@ import tensorflow_io as tfio
 import numpy as np
 import pandas as pd
 
+import matplotlib.pyplot as plt
+
+
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 class ImagePreprocessArgs:
@@ -64,6 +67,7 @@ class TFImageDataset:
         self.prefetch = prefetch
         self.prefetch_gpu = prefetch_gpu
         self.shard = shard
+        self.args = None
 
     def flow(self, x, y=None, batch_size=32, shuffle=True, repeat=False, random_state=None):
         """Takes data & label arrays, generates batches of augmented data.
@@ -81,13 +85,59 @@ class TFImageDataset:
                 random_state: Int (default: None).
                 repeat: whether to repeat the data (default: False)
         """
-
+        self.args = locals()
         dataset = self.__create_dataset('numpy', x, y, shuffle=shuffle,
                                         batch_size=batch_size, repeat=repeat,
                                         random_state=random_state, image_args=None)
 
         return dataset
 
+
+    def show_examples(self, dataset, show_labels=True, ncols=8):
+        if self.args is None:
+            raise UnboundLocalError('dataset is not initialised and data arguments are None. Run flow_from_dataframe or flow first.')
+
+        if self.args['multiinput']:
+            raise ValueError('multiinput datasets are not supported')
+
+        dataset = dataset.as_numpy_iterator()
+        dataset = dataset.next()
+
+        example = dataset[0]
+        info = None
+
+        if show_labels:
+            if len(dataset)<2:
+                raise ValueError('dataset does not contain metadata information')
+
+            if self.args['class_mode'] == 'categorical':
+                info = np.array(self.args['classes'])[np.argmax(dataset[1], 1)]
+            else:
+                raise ValueError('currently only categorical classificatino mode is supported')
+        
+        n_examples = example.shape[0]
+        nrows = n_examples // ncols
+
+        remainder = n_examples % ncols
+        if remainder > 0:
+            nrows += 1
+
+        fig, axs = plt.subplots(nrows, ncols, figsize=(ncols*2, nrows*2))
+        axs = axs.ravel()
+
+        for i in range(n_examples):
+            axs[i].imshow(example[i].astype("uint8"))
+            axs[i].axis("off")
+            axs[i].set_xticklabels([])
+            axs[i].set_yticklabels([])
+            axs[i].set_title(info[i])
+
+        empty_axs = np.arange(n_examples    , nrows * ncols)
+
+        for i in empty_axs:
+            fig.delaxes(axs[i])
+
+        plt.tight_layout()
 
 
     def flow_from_dataframe(self, dataframe, directory=None, x_col='filename', y_col='class',
@@ -138,6 +188,7 @@ class TFImageDataset:
                 random_state: integer. Control random seed.
         """
 
+        self.args = locals()
         image_args = ImagePreprocessArgs(target_size=target_size,
                                          color_mode=color_mode,
                                          preserve_aspect_ratio=preserve_aspect_ratio,
@@ -147,6 +198,8 @@ class TFImageDataset:
         multiinput = False
         if type(x_col) is list:
             multiinput = True
+
+        self.args['multiinput'] = multiinput
 
         if directory is not None:
             if multiinput:
