@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='datasets',
-      version='0.3',
+      version='0.3.1',
       description='Dataset management classes for Tensorflow',
       url='http://github.com/beringresearch/datasets',
       author='Bering Limited',
