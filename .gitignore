@@ -9,5 +9,8 @@ __pycache__/
 .ipynb_checkpoints
 _build
 *.pyc
+*.zip
 
+examples/__MACOSX
 examples/padchest/
+examples/MontgomerySet/*
