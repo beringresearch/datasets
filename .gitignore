@@ -13,4 +13,7 @@ _build
 
 examples/__MACOSX
 examples/padchest/
+examples/padchest/*
+
+examples/MontgomerySet/
 examples/MontgomerySet/*
