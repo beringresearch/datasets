@@ -1,3 +1,5 @@
+import ipywidgets
+
 def show_img(img_ix, img_list, read_fn=None, display_fn=None):
     """function to display image with previous/next buttons
     img_ix: int initial index of the image to be displayed
