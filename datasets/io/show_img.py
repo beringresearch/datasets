@@ -23,11 +23,11 @@ def show_img(img_ix, img_list, read_fn=None, display_fn=None):
     
     def on_button_next(b):
         clear_output()
-        show_img(img_ix + 1, img_list, read_fn)
+        show_img(img_ix + 1, img_list, read_fn, display_fn)
 
     def on_button_prev(b):
         clear_output()
-        show_img(img_ix - 1, img_list, read_fn)
+        show_img(img_ix - 1, img_list, read_fn, display_fn)
 
     button_next = ipywidgets.Button(description="Next")
     button_prev = ipywidgets.Button(description="Prev")
