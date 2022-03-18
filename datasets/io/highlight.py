@@ -1,13 +1,19 @@
 import tensorflow.keras.backend as K
 
-def resize(image, label, size):
-    return tf.image.resize(image, (size, size), method='bilinear', preserve_aspect_ratio=False), label
-
 def highlight(path, model_name, size, layer_name, class_ix=None):
+    """function to display the activation map of an image
+    path: path to image file
+    model_name: model name associated with activation map to be displayed
+    size: image size required for model
+    layer_name: layer associated with activation map
+    class_ix: index of class to display. if None, use class 0
+    """
     x = read_dicom_uint16(path, 1)
-    x = resize(x[0], x[1], size)
-    x = preprocess_uint16_input_inceptionv3(x[0], x[1])
-    x = tf.reshape(x[0], (1, size, size, 3))
+    x = tf.image.resize(image, (size, size), method='bilinear', preserve_aspect_ratio=False)
+    x = tf.cast(x, tf.float32)
+    x /= 32767.5
+    x -= 1
+    x = tf.reshape(x, (1, size, size, 3))
     
     with tf.GradientTape() as tape:
         last_conv_layer = model_name.get_layer(layer_name)
